@@ -1,0 +1,9 @@
+{
+    "log_id": "e98c4968-382d-41df-b393-a9b92213eb0d",
+    "owner": "client_user",
+    "timestamp": "2025-12-24T10:09:58.484984",
+    "level": "WARNING",
+    "service": "payment-gateway",
+    "message": "Transaction threshold exceeded",
+    "simulation_data": 936
+}
