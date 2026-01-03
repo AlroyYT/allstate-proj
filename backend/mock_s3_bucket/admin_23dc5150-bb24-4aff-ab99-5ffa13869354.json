@@ -1,9 +1,0 @@
-{
-    "log_id": "23dc5150-bb24-4aff-ab99-5ffa13869354",
-    "owner": "admin",
-    "timestamp": "2025-12-24T10:06:41.593720",
-    "level": "WARNING",
-    "service": "system-monitor",
-    "message": "CPU usage spike detected",
-    "simulation_data": 838
-}

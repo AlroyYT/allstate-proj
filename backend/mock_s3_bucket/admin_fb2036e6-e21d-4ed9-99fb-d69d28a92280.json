@@ -1,9 +1,0 @@
-{
-    "log_id": "fb2036e6-e21d-4ed9-99fb-d69d28a92280",
-    "owner": "admin",
-    "timestamp": "2025-12-23T22:47:08.573180",
-    "level": "CRITICAL",
-    "service": "system-monitor",
-    "message": "CPU usage spike detected",
-    "simulation_data": 118
-}

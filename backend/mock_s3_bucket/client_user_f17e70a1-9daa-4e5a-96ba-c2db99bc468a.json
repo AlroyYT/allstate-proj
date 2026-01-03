@@ -1,9 +1,0 @@
-{
-    "log_id": "f17e70a1-9daa-4e5a-96ba-c2db99bc468a",
-    "owner": "client_user",
-    "timestamp": "2025-12-24T10:11:59.129950",
-    "level": "CRITICAL",
-    "service": "payment-gateway",
-    "message": "Transaction threshold exceeded",
-    "simulation_data": 271
-}

@@ -72,9 +72,19 @@ export default function Dashboard() {
     router.push('/login');
   };
 
-  const openS3Link = (filename: string) => {
-    window.open(`http://localhost:5000/s3-view/${filename}`, '_blank');
-  };
+  const openS3Link = async (logId: string) => {
+  try {
+    const res = await fetch(`http://localhost:5000/api/download-log/${logId}`);
+    const data = await res.json();
+
+    if (data.url) {
+      window.open(data.url, '_blank');
+    }
+  } catch (err) {
+    console.error("Failed to download log");
+  }
+};
+
 
   const getLevelColor = (level: string) => {
     switch(level) {
@@ -359,7 +369,7 @@ export default function Dashboard() {
                             <code>{log.filename.substring(0, 25)}...</code>
                           </td>
                           <td>
-                            <button className="download-button" onClick={() => openS3Link(log.filename)}>
+                            <button className="download-button" onClick={() => openS3Link(log.id)}>
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                 <polyline points="7 10 12 15 17 10"></polyline>

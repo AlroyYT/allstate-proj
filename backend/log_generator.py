@@ -2,60 +2,121 @@ import time
 import json
 import uuid
 import os
-import sqlite3
 import random
-from datetime import datetime
+import boto3
+import psycopg2
+from datetime import datetime, timezone
+from dotenv import load_dotenv
 
-# CONFIGURATION
-BUCKET_DIR = "mock_s3_bucket"
-DB_FILE = "database.db"
+# ------------------------
+# LOAD ENV
+# ------------------------
+load_dotenv()
 
-# Ensure mock bucket exists
-if not os.path.exists(BUCKET_DIR):
-    os.makedirs(BUCKET_DIR)
+# ------------------------
+# DEBUG: WHO AM I?
+# ------------------------
+sts = boto3.client("sts")
+print(sts.get_caller_identity())
 
-# Initialize DB for LOGS (with 'owner' column for unique views)
-conn = sqlite3.connect(DB_FILE)
-conn.execute('''CREATE TABLE IF NOT EXISTS logs 
-                (id TEXT PRIMARY KEY, filename TEXT, level TEXT, timestamp DATETIME, owner TEXT)''')
-conn.close()
+# ------------------------
+# AWS CONFIG
+# ------------------------
+AWS_REGION = os.getenv("AWS_REGION")
+S3_BUCKET = os.getenv("S3_BUCKET_NAME")
+
+if not S3_BUCKET:
+    raise RuntimeError("S3_BUCKET_NAME environment variable is not set")
+
+print("Bucket:", S3_BUCKET)
+print("AWS Region:", AWS_REGION)
+
+# IMPORTANT: let boto3 auto-detect region (avoids AccessDenied)
+s3_client = boto3.client(
+    "s3",
+    region_name="ap-south-1",
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
+)
+
+# ------------------------
+# RDS CONFIG
+# ------------------------
+def get_db():
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST"),
+        database=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        port=os.getenv("DB_PORT", 5432)
+    )
+
+# ------------------------
+# LOG GENERATOR
+# ------------------------
+USERS = ["admin", "client_user"]
+LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 def generate_log():
-    # Simulate two different users to prove unique views
-    users = ["admin", "client_user"]
-    levels = ["INFO", "WARNING", "ERROR", "CRITICAL"]
-    
-    selected_user = random.choice(users)
+    owner = random.choice(USERS)
+    level = random.choice(LEVELS)
     log_id = str(uuid.uuid4())
-    filename = f"{selected_user}_{log_id}.json"
-    
-    # 1. Create the Log Data
+    filename = f"{owner}_{log_id}.json"
+
     log_data = {
         "log_id": log_id,
-        "owner": selected_user,
-        "timestamp": datetime.now().isoformat(),
-        "level": random.choice(levels),
-        "service": "payment-gateway" if selected_user == "client_user" else "system-monitor",
-        "message": "Transaction threshold exceeded" if selected_user == "client_user" else "CPU usage spike detected",
+        "owner": owner,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "level": level,
+        "service": "payment-gateway" if owner == "client_user" else "system-monitor",
+        "message": (
+            "Transaction threshold exceeded"
+            if owner == "client_user"
+            else "CPU usage spike detected"
+        ),
         "simulation_data": random.randint(100, 999)
     }
 
-    # 2. "Upload" to S3 (Save to folder)
-    file_path = os.path.join(BUCKET_DIR, filename)
-    with open(file_path, 'w') as f:
-        json.dump(log_data, f, indent=4)
+    # ------------------------
+    # S3 KEY (LEVEL BASED)
+    # ------------------------
+    s3_key = f"{level.lower()}/{owner}/{filename}"
 
-    # 3. Save Metadata to DBMS (SQLite)
-    conn = sqlite3.connect(DB_FILE)
-    conn.execute("INSERT INTO logs (id, filename, level, timestamp, owner) VALUES (?, ?, ?, ?, ?)",
-                 (log_id, filename, log_data['level'], log_data['timestamp'], selected_user))
+    s3_client.put_object(
+        Bucket=S3_BUCKET,
+        Key=s3_key,
+        Body=json.dumps(log_data, indent=4),
+        ContentType="application/json"
+    )
+
+    # ------------------------
+    # SAVE METADATA TO RDS
+    # ------------------------
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO logs (id, filename, level, owner, s3_key)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (
+        log_id,
+        filename,
+        level,
+        owner,
+        s3_key
+    ))
+
     conn.commit()
+    cur.close()
     conn.close()
 
-    print(f"[SIMULATION] Generated {filename} -> Owner: {selected_user}")
+    print(f"[S3 + RDS] {level} log stored → {s3_key}")
 
-# Run loop
-print("Starting Log Simulation... (Press Ctrl+C to stop)")
+# ------------------------
+# RUN LOOP
+# ------------------------
+print("Starting Cloud Log Simulation (S3 + RDS)... Ctrl+C to stop")
+
 while True:
     generate_log()
-    time.sleep(4) # New log every 4 seconds
+    time.sleep(4)
